@@ -1,0 +1,235 @@
+openapi: "3.0.0"
+
+info: 
+
+  title: A FTP Portal
+  version: 0.1.0
+  description: A FTP portal that can be used as a middleware service between clients and servers.
+
+paths:
+
+  /ping:
+
+    get:
+      summary: Respond with a server up-time
+      responses:
+        '200':
+          description: |-
+            200 response
+          content:
+            application/json:
+              example:
+                uptime: 6.723
+
+  /dir:
+
+    get:
+      summary: List files in a directory on the server.
+      parameters:
+      - name: host
+        in: query
+        description: url or ip address of the server.
+        required: true
+        schema:
+          type: string
+      - name: port
+        in: query
+        description: port of the server.
+        required: true
+        schema:
+          type: integer
+      - name: dir
+        in: query
+        description: a directory on the server. Default is the root directory.
+        required: false
+        schema:
+          type: string
+          default: '/'
+      responses:
+        '200':
+          description: A list of files in the directory. An empty array will be returned if the directory doesn't exist.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/file'
+        '400':
+          description: Error message returned from the FTP server
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: Login authentication failed
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+      security:
+      - basicAuth: []
+
+  /file:
+
+    get:
+      summary: Download a file from the FTP server.
+      parameters:
+      - name: host
+        in: query
+        description: url or ip address of the FTP server.
+        required: true
+        schema:
+          type: string
+      - name: port
+        in: query
+        description: port of the FTP server.
+        required: true
+        schema:
+          type: integer
+      - name: remote
+        in: query
+        description: Full path name of the file to be downloaded.
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Binary stream of the file.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Error message returned from FTP server or local file system.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+      security:
+      - basicAuth: []
+
+    post:
+      summary: Upload a file to the FTP server.
+      parameters:
+      - name: host
+        in: query
+        description: url or ip address of the FTP server.
+        required: true
+        schema:
+          type: string
+      - name: port
+        in: query
+        description: port of the FTP server.
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        description: Additional data required for uploading a file.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  description: Can either be path of the local file, or a buffer / readableStream of the content to be uploaded.
+                remote:
+                  type: string
+                  description: Destination path of the file on FTP server.
+      responses:
+        '204':
+          description: File was uploaded successfully.
+        '400':
+          description: Error message returned from FTP server or local file system.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+      security:
+      - basicAuth: []
+
+    delete:
+      summary: Delete a remote file on FTP server.
+      parameters:
+      - name: host
+        in: query
+        description: url or ip address of the FTP server.
+        required: true
+        schema:
+          type: string
+      - name: port
+        in: query
+        description: port of the FTP server.
+        required: true
+        schema:
+          type: integer
+      - name: remote
+        in: query
+        description: Full path name of the file to be deleted.
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: File was deleted successfully.
+        '400':
+          description: Error message returned from FTP server.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+      security:
+      - basicAuth: []
+
+components:
+
+  schemas:
+
+    rights:
+      type: string
+      enum:
+      - 'r'
+      - 'rw'
+      - 'rx'
+      - 'rwx'
+
+    file:
+      type: object
+      properties:
+        'type':
+          type: string
+          enum:
+          - 'd'
+          - '-'
+        'name':
+          type: string
+        'sticky':
+          type: boolean
+        'rights':
+          type: object
+          properties:
+            'user':
+              $ref: '#/components/schemas/rights'
+            'group':
+              $ref: '#/components/schemas/rights'
+            'other':
+              $ref: '#/components/schemas/rights'
+        'acl':
+          type: boolean
+        'owner':
+          type: integer
+        'group':
+          type: integer
+        'size':
+          type: integer
+        'date':
+          type: string
+          format: date-time
+
+  securitySchemes:
+
+    basicAuth:
+      type: http
+      scheme: basic
+
+  responses:
+
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      headers:
+        WWW_Authenticate:
+          schema:
+            type: string
